@@ -1,61 +1,108 @@
 import { useState, useEffect } from 'react';
 import PortaoContext from './PortaoContext';
 import Tabela from './Tabela';
-import Form from './Form'
+import Form from './Form';
+import Carregando from "../../comuns/Carregando";
+import WithAuth from "../../seguranca/WithAuth";
+import Autenticacao from "../../seguranca/Autenticacao";
+import { useNavigate } from "react-router-dom";
 
 function Portao() {
 
+    let navigate = useNavigate();
     const [alerta, setAlerta] = useState({ status: "", message: "" });
     const [listaObjetos, setListaObjetos] = useState([]);
     const [editar, setEditar] = useState(false);
-    const [objeto, setObjeto] = useState({ codigo: "", nome: "" })
+    const [objeto, setObjeto] = useState({ codigo: "", nome: "" });
+    const [carregando, setCarregando] = useState(true);
 
     const recuperaPortoes= async () => {
-        await fetch(`${process.env.REACT_APP_ENDERECO_API}/portoes`)
-            .then(response => response.json())
-            .then(data => setListaObjetos(data))
-            .catch(err => console.log('Erro: ' + err))
+        try {
+            setCarregando(true);
+
+            await fetch(`${process.env.REACT_APP_ENDERECO_API}/portoes`,
+                {
+                    method: "GET",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "x-access-token": Autenticacao.pegaAutenticacao().token
+                    }
+                })
+                .then(response => response.json())
+                .then(data => setListaObjetos(data))
+                .catch(err => setAlerta({ status: "error", message: err }))
+            setCarregando(false);
+        } catch (err) {
+            window.location.reload();
+            navigate("/login", { replace: true });
+        }
     }
 
     const remover = async objeto => {
         if (window.confirm('Deseja remover este objeto?')) {
             try {
-                await fetch(`${process.env.REACT_APP_ENDERECO_API}/portoes/${objeto.codigo}`,
-                    { method: "DELETE" })
-                    .then(response => response.json())
-                    .then(json => setAlerta({ status: json.status, message: json.message }))
+                await
+                    fetch(`${process.env.REACT_APP_ENDERECO_API}/portoes/${objeto.codigo}`,
+                        {
+                            method: "DELETE",
+                            headers: {
+                                "Content-Type": "application/json",
+                                "x-access-token": Autenticacao.pegaAutenticacao().token
+                            }
+                        })
+                        .then(response => response.json())
+                        .then(json => setAlerta({ status: json.status, message: json.message }))
                 recuperaPortoes();
             } catch (err) {
-                console.log('Erro: ' + err)
+                window.location.reload();
+                navigate("/login", { replace: true });
             }
         }
     }
 	
-   const recuperar = async codigo => {    
-        await fetch(`${process.env.REACT_APP_ENDERECO_API}/portoes/${codigo}`)
-            .then(response => response.json())
-            .then(data => setObjeto(data))
-            .catch(err => console.log(err))
+   const recuperar = async codigo => { 
+        try {
+            await fetch(`${process.env.REACT_APP_ENDERECO_API}/portoes/${codigo}`,
+                {
+                    method: "GET",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "x-access-token": Autenticacao.pegaAutenticacao().token
+                    }
+                })
+                .then(response => response.json())
+                .then(data => setObjeto(data))
+                .catch(err => setAlerta({ status: "error", message: err }));
+        } catch (err) {
+            window.location.reload();
+            navigate("/login", { replace: true });
+        }
     }
 
     const acaoCadastrar = async e => {
         e.preventDefault();
         const metodo = editar ? "PUT" : "POST";
         try {
-            await fetch(`${process.env.REACT_APP_ENDERECO_API}/portoes`, {
-                method: metodo,
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(objeto),
-            }).then(response => response.json())
+            await fetch(`${process.env.REACT_APP_ENDERECO_API}/portoes`,
+                {
+                    method: metodo,
+                    headers: {
+                        "Content-Type": "application/json",
+                        "x-access-token": Autenticacao.pegaAutenticacao().token
+                    },
+                    body: JSON.stringify(objeto)
+                }).then(response => response.json())
                 .then(json => {
                     setAlerta({ status: json.status, message: json.message });
                     setObjeto(json.objeto);
                     if (!editar) {
                         setEditar(true);
                     }
-                });
-        } catch (err) {
-            console.error(err.message);
+                })
+        }catch (err) {
+            setAlerta({ status: "error", message: err });
+            window.location.reload();
+            navigate("/login", { replace: true });
         }       
         recuperaPortoes();
     }
@@ -71,23 +118,19 @@ function Portao() {
     }, []);
 
     return (
-        <PortaoContext.Provider value={
-            {
-                alerta, setAlerta,
-                listaObjetos, setListaObjetos,               
-                recuperaPortoes,
-                remover,
-                objeto, setObjeto,
-                editar, setEditar,
-                recuperar,
-                acaoCadastrar,
-                handleChange
-            }
-        }>
+        <PortaoContext.Provider value={{
+            alerta, setAlerta,
+            listaObjetos, setListaObjetos,
+            recuperaPortoes, remover,
+            objeto, setObjeto,
+            editar, setEditar,
+            recuperar, acaoCadastrar,
+            handleChange
+        }}>
+            {!carregando ? <Tabela /> : <Carregando />}
             <Form />
-            <Tabela />
         </PortaoContext.Provider>
     );
 }
 
-export default Portao;
+export default WithAuth(Portao);
